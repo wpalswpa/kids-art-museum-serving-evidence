@@ -1,4 +1,42 @@
-# 우리 아이 미술관
+# 우리 아이 미술관 · 작업 처리 규칙과 실행 검증
+
+[![ci](https://github.com/wpalswpa/kids-art-museum-serving-evidence/actions/workflows/ci.yml/badge.svg)](https://github.com/wpalswpa/kids-art-museum-serving-evidence/actions/workflows/ci.yml)
+
+**무엇을 만들었나.** 아이 그림을 움직임·입체로 바꾸는 팀 서비스(교육 과정 4인 팀, 원본 비공개)에서 내가 맡은 작업 처리 규칙을, 실제로 돌아가는 API·워커·MariaDB 서비스로 다시 세웠다. 원본 팀 코드의 사본이 아니라 공개용 재현이다.
+
+**무엇이 바뀌나.** 변경이 올라오면 GitHub Actions가 ruff → 규칙 단위 검사 16개 → OpenAPI 문서 검증 → 컨테이너 빌드 → 계약 검사·장애 주입 시험 11개를 차례로 돌린다. 모든 API 응답은 OpenAPI 스키마로 검증되고, 모델 시간 초과·503·계약 위반 응답·DB 중지에서 규칙이 지켜지는지 확인한다.
+
+**어떻게 아나.** [CI 실행 기록](https://github.com/wpalswpa/kids-art-museum-serving-evidence/actions/workflows/ci.yml)(로그·지표 보관), [장애 주입 시험](tests/integration/test_service.py), 음성 대조(워커 시간 제한을 5초로 늘리면 시간 초과 시나리오 2개와 지표 검사가 실패한다).
+
+**재현.**
+
+```bash
+docker compose up -d --build --wait
+pip install pytest jsonschema pyyaml requests
+API_URL=http://localhost:8000 COMPOSE=1 python -m pytest tests/integration -v
+```
+
+| 장애 주입 | 지켜야 할 것 | 확인 |
+|---|---|---|
+| 모델 시간 초과 1회 → 정상 | 같은 단계 재시도, 원인은 인프라 실패 | 시험 3 |
+| 시간 초과 3회 · 503 3회 | 결과 미도달, 벽에는 원본 액자, 다른 결과로 확인 거절 | 시험 4·6 |
+| 계약 위반 응답(JSON 아님·필드 다름) | 낮춤이 아니라 재시도([결정 004](docs/decisions/004-invalid-response.md)) | 시험 5 |
+| 품질 미달 | 재시도 없이 한 단계 낮춤 | 시험 2 |
+| DB 중지 | API 503 + request_id, 재시작 뒤 앞서 올린 작품이 끝까지 처리 | 시험 11 |
+| 모든 시나리오 | 확인 전 원본 액자만 전시, 단계별 시도 3회 이하, 워커 지표 = 실제 결과 수 | 공통 검사·시험 10 |
+
+설계는 구현 전에 커밋한 [docs/platform.md](docs/platform.md)에 있다. 서비스 코드·컨테이너·CI는 2026-10-06에 추가했다. 처리 규칙과 결정 기록 001~003은 원본 팀 프로젝트(2026-09)에서 정한 것이고, 원본에서 돌린 시험 기록은 [evidence/README.md](evidence/README.md)에 있다. 코드 작성에는 AI 코딩 도구(Claude Code)를 썼다.
+
+| 구성 | 파일 |
+|---|---|
+| 처리 규칙(원본 액자 먼저·품질 미달 낮춤·장애 재시도·원인 5분류) | [fallback.py](fallback.py) |
+| 계약 | [contracts/openapi.yaml](contracts/openapi.yaml), [contracts/model_response.schema.json](contracts/model_response.schema.json) |
+| API · 워커(응답 분류 한 곳) · 가짜 모델 서버 | [service/](service/) |
+| 로그·지표 | 한 줄 JSON 로그(request_id·job_id·분류·지연), Prometheus `jobs_total`·`job_retries_total`·`job_attempts_total`·`job_duration_seconds` |
+
+---
+
+## 서비스 소개
 
 > 작은 손이 남긴 선이, 우리 가족의 한 장면으로.
 
