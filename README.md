@@ -6,7 +6,7 @@
 
 **무엇이 바뀌나.** 변경이 올라오면 GitHub Actions가 ruff → 규칙 단위 검사 16개 → OpenAPI 문서 검증 → 컨테이너 빌드 → 계약 검사·장애 주입 시험 11개를 차례로 돌린다. 모든 API 응답은 OpenAPI 스키마로 검증되고, 모델 시간 초과·503·계약 위반 응답·DB 중지에서 규칙이 지켜지는지 확인한다.
 
-**어떻게 아나.** [CI 실행 기록](https://github.com/wpalswpa/kids-art-museum-serving-evidence/actions/workflows/ci.yml)(로그·지표 보관), [장애 주입 시험](tests/integration/test_service.py), 음성 대조(워커 시간 제한을 5초로 늘리면 시간 초과 시나리오 2개와 지표 검사가 실패한다).
+**어떻게 아나.** [CI 실행 기록](https://github.com/wpalswpa/kids-art-museum-serving-evidence/actions/workflows/ci.yml)(로그·지표 보관), [장애 주입 시험](tests/integration/test_service.py), 음성 대조: CI가 워커 시간 제한을 1초에서 5초로 늘려 시간 초과 시나리오 2개가 실제로 실패하는지 확인하고, 되돌려 다시 통과시킨다(시험이 고장을 잡지 못하면 CI가 실패).
 
 **재현.**
 
