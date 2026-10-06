@@ -14,7 +14,8 @@ MODEL_FREE = "frame"
 # 워커가 돌려주는 응답 분류
 OK = "ok"
 QUALITY_BELOW = "quality_below"
-INFRA_ERRORS = {"engine_down", "timeout", "storage", "db", "model_not_ready"}
+INFRA_ERRORS = {"engine_down", "timeout", "storage", "db", "model_not_ready",
+                "invalid_response"}  # 계약 위반 응답: 2026-10-06 추가(결정 004)
 
 MAX_ATTEMPTS = 3  # 첫 시도 포함
 

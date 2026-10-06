@@ -1,0 +1,8 @@
+line-length = 140
+target-version = "py310"
+
+[lint]
+select = ["E", "F", "I", "B", "SIM"]
+
+[lint.isort]
+known-first-party = ["fallback", "db", "obs"]

@@ -1,0 +1,37 @@
+# docker compose up --build  ->  API http://localhost:8000, 워커 지표 http://localhost:9101/metrics
+services:
+  db:
+    image: mariadb:11.4
+    environment:
+      MARIADB_DATABASE: museum
+      MARIADB_USER: museum
+      MARIADB_PASSWORD: museum
+      MARIADB_ROOT_PASSWORD: root-for-local-only
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  model:
+    build: .
+    command: ["uvicorn", "model_stub:app", "--host", "0.0.0.0", "--port", "8001"]
+    ports: ["8001:8001"]
+  api:
+    build: .
+    environment: {DB_HOST: db}
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz', timeout=2)"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    depends_on:
+      db: {condition: service_healthy}
+  worker:
+    build: .
+    command: ["python", "worker.py"]
+    environment: {DB_HOST: db, MODEL_URL: "http://model:8001", MODEL_TIMEOUT: "${MODEL_TIMEOUT:-1.0}"}
+    ports: ["9101:9101"]
+    depends_on:
+      db: {condition: service_healthy}
+      model: {condition: service_started}

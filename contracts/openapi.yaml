@@ -1,0 +1,156 @@
+openapi: 3.1.0
+info:
+  title: 우리 아이 미술관 작업 처리 API(공개 재현)
+  version: 0.1.0
+  description: 작품을 올리면 원본 액자로 먼저 걸고, 워커가 고른 결과를 만든다. 결과는 보호자가 확인해야 바꿔 건다.
+servers:
+  - url: http://localhost:8000
+paths:
+  /artworks:
+    post:
+      operationId: uploadArtwork
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UploadRequest'}
+      responses:
+        '201':
+          description: 원본 액자로 걸림
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Artwork'}
+        '422': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /artworks/{id}:
+    get:
+      operationId: getArtwork
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200':
+          description: 작품 상태
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Artwork'}
+        '404': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /artworks/{id}/confirm:
+    post:
+      operationId: confirmArtwork
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ConfirmRequest'}
+      responses:
+        '200':
+          description: 벽에 건 결과가 바뀜
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Artwork'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /healthz:
+    get:
+      operationId: health
+      responses:
+        '200':
+          description: 프로세스 살아 있음
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Status'}
+  /readyz:
+    get:
+      operationId: ready
+      responses:
+        '200':
+          description: DB 연결됨
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Status'}
+        '503': {$ref: '#/components/responses/Error'}
+components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: {type: integer, minimum: 1}
+  responses:
+    Error:
+      description: 오류. 모양은 하나다
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+  schemas:
+    Kind:
+      type: string
+      enum: [animated, sculpture, relief, frame]
+    UploadRequest:
+      type: object
+      required: [wanted, title]
+      properties:
+        wanted: {$ref: '#/components/schemas/Kind'}
+        title: {type: string, minLength: 1, maxLength: 120}
+      additionalProperties: false
+    ConfirmRequest:
+      type: object
+      required: [choice]
+      properties:
+        choice: {$ref: '#/components/schemas/Kind'}
+      additionalProperties: false
+    Attempt:
+      type: object
+      required: [stage, classification, attempt, latency_ms]
+      properties:
+        stage: {$ref: '#/components/schemas/Kind'}
+        classification:
+          type: string
+          enum: [ok, quality_below, timeout, engine_down, invalid_response]
+        attempt: {type: integer, minimum: 1, maximum: 3}
+        latency_ms: {type: integer, minimum: 0}
+      additionalProperties: false
+    Artwork:
+      type: object
+      required: [id, title, wanted, on_wall, target, status, result, causes, attempts]
+      properties:
+        id: {type: integer}
+        title: {type: string}
+        wanted: {$ref: '#/components/schemas/Kind'}
+        on_wall: {$ref: '#/components/schemas/Kind'}
+        target: {$ref: '#/components/schemas/Kind'}
+        status:
+          type: string
+          enum: [queued, running, done, not_delivered]
+        result:
+          oneOf:
+            - {$ref: '#/components/schemas/Kind'}
+            - {type: 'null'}
+        causes:
+          type: array
+          items:
+            type: string
+            enum: [guardian_choice, model_downgrade, guardian_switch, infra_failure, not_delivered]
+        attempts:
+          type: array
+          items: {$ref: '#/components/schemas/Attempt'}
+      additionalProperties: false
+    Status:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string, enum: [ok]}
+      additionalProperties: false
+    Error:
+      type: object
+      required: [error, request_id]
+      properties:
+        error:
+          type: string
+          enum: [not_found, invalid_request, not_ready, db_unavailable]
+        detail: {type: string}
+        request_id: {type: string, minLength: 1}
+      additionalProperties: false

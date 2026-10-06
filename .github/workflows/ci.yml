@@ -1,0 +1,45 @@
+# 변경이 올라오면: 정적 검사 -> 단위 검사 -> 계약 문서 검증 -> 컨테이너 빌드 -> 계약 검사·장애 주입 시험(docs/platform.md 6절)
+name: ci
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install ruff==0.8.4 openapi-spec-validator==0.7.1
+      - name: lint
+        run: ruff check .
+      - name: unit tests (rules)
+        run: python -m unittest discover -s tests -v
+      - name: OpenAPI document
+        run: python -m openapi_spec_validator contracts/openapi.yaml
+
+  integration:
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install pytest==8.3.4 jsonschema==4.23.0 pyyaml==6.0.2 requests==2.32.3
+      - name: build and start (api, worker, model stub, MariaDB)
+        run: docker compose up -d --build --wait
+      - name: contract tests and failure injection
+        env: {API_URL: "http://localhost:8000", COMPOSE: "1"}
+        run: python -m pytest tests/integration -v
+      - name: collect logs and metrics
+        if: always()
+        run: |
+          mkdir -p run-evidence
+          docker compose logs --no-color > run-evidence/compose.log
+          curl -s localhost:9101/metrics > run-evidence/worker-metrics.txt || true
+          curl -s localhost:8000/metrics > run-evidence/api-metrics.txt || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: run-evidence, path: run-evidence}

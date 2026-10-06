@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "모델 서버 응답(워커↔모델 계약)",
+  "type": "object",
+  "required": ["status"],
+  "properties": {"status": {"enum": ["ok", "quality_below"]}},
+  "additionalProperties": false
+}

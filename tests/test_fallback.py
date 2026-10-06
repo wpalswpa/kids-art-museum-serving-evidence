@@ -109,3 +109,22 @@ class CausesAreNotMixed(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InvalidResponseIsInfra(unittest.TestCase):
+    """계약을 어긴 응답은 낮춤이 아니라 같은 단계 재시도다(결정 004)."""
+
+    def test_invalid_then_ok_keeps_stage(self):
+        art = f.upload("animated")
+        f.apply(art, "invalid_response")
+        self.assertEqual(art.target, "animated")
+        self.assertNotIn(f.MODEL_DOWNGRADE, art.causes)
+        f.apply(art, f.OK)
+        self.assertEqual(art.result, "animated")
+        self.assertIn(f.INFRA_FAILURE, art.causes)
+
+    def test_three_invalid_is_not_delivered(self):
+        art = f.upload("animated")
+        for _ in range(f.MAX_ATTEMPTS):
+            f.apply(art, "invalid_response")
+        self.assertIn(f.NOT_DELIVERED, art.causes)
