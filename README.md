@@ -4,7 +4,7 @@
 
 **무엇을 만들었나.** 아이 그림을 움직임·입체로 바꾸는 팀 서비스(교육 과정 4인 팀, 원본 비공개)에서 내가 맡은 작업 처리 규칙을, 실제로 돌아가는 API·워커·MariaDB 서비스로 다시 세웠다. 원본 팀 코드의 사본이 아니라 공개용 재현이다.
 
-**무엇이 바뀌나.** 변경이 올라오면 GitHub Actions가 ruff → 규칙 단위 검사 16개 → OpenAPI 문서 검증 → 컨테이너 빌드 → 계약 검사·장애 주입 시험 11개를 차례로 돌린다. 모든 API 응답은 OpenAPI 스키마로 검증되고, 모델 시간 초과·503·계약 위반 응답·DB 중지에서 규칙이 지켜지는지 확인한다.
+**무엇이 바뀌나.** 변경이 올라오면 GitHub Actions가 ruff → 규칙 단위 검사 16개 → OpenAPI 문서 검증 → 컨테이너 빌드 → 계약 검사·장애 주입 시험 11개 → 음성 대조를 돌리고, 따로 TypeScript 타입 검사 → 보호자 화면 E2E 시험 4개(Playwright, 실제 브라우저)를 돌린다. 모든 API 응답은 OpenAPI 스키마로 검증되고, 모델 시간 초과·503·계약 위반 응답·DB 중지에서 규칙이 지켜지는지 확인한다.
 
 **어떻게 아나.** [CI 실행 기록](https://github.com/wpalswpa/kids-art-museum-serving-evidence/actions/workflows/ci.yml)(로그·지표 보관), [장애 주입 시험](tests/integration/test_service.py), 음성 대조: CI가 워커 시간 제한을 1초에서 5초로 늘려 시간 초과 시나리오 2개가 실제로 실패하는지 확인하고, 되돌려 다시 통과시킨다(시험이 고장을 잡지 못하면 CI가 실패).
 
@@ -14,7 +14,10 @@
 docker compose up -d --build --wait
 pip install pytest jsonschema pyyaml requests
 API_URL=http://localhost:8000 COMPOSE=1 python -m pytest tests/integration -v
+npm ci && npx playwright install chromium && API_URL=http://localhost:8000 npx playwright test   # 화면 E2E
 ```
+
+화면 E2E는 보호자가 겪는 흐름을 본다: 올리는 즉시 원본 액자, 결과는 확인 뒤에만 바꿔 걸기, 결과 미도달 안내와 원본 액자만 선택 가능, 품질 미달 이유 표시. 화면이 결과를 확인 전에 바로 걸도록 고치면 첫 시험이 실패하는 것을 로컬에서 확인했다([e2e/guardian.spec.ts](e2e/guardian.spec.ts), 화면 [web/src/app.ts](web/src/app.ts)).
 
 | 장애 주입 | 지켜야 할 것 | 확인 |
 |---|---|---|

@@ -2,11 +2,13 @@
 import json
 import time
 import uuid
+from pathlib import Path
 
 import pymysql
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 import db
@@ -149,3 +151,9 @@ def ready(request: Request):
 @app.get("/metrics")
 def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+# 보호자 화면(web/). API 경로를 모두 등록한 뒤에 붙여야 API가 가려지지 않는다.
+WEB = Path(__file__).resolve().parent / "web"
+if WEB.exists():
+    app.mount("/", StaticFiles(directory=WEB, html=True), name="web")

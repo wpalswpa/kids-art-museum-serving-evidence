@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>우리 아이 미술관 · 작품 올리기</title>
+<style>
+body{font-family:system-ui,'Malgun Gothic',sans-serif;max-width:560px;margin:32px auto;padding:0 16px;color:#1f2d33;background:#fbfaf7}
+h1{font-size:22px}form,section{background:#fff;border:1px solid #ddd6c9;padding:16px;margin-top:14px}
+label{display:block;margin-top:8px;font-size:14px}input,select{width:100%;padding:8px;margin-top:4px;font-size:15px}
+button{margin-top:12px;padding:9px 14px;font-size:15px;border:1px solid #6b4e2e;background:#6b4e2e;color:#fff;cursor:pointer}
+button.secondary{background:#fff;color:#6b4e2e}button:disabled{opacity:.4;cursor:not-allowed}
+.wall{font-size:20px;font-weight:700}.muted{color:#5c6b70;font-size:14px}.notice{background:#fff4e5;padding:8px;margin-top:8px}
+</style>
+</head>
+<body>
+<h1>우리 아이 미술관 · 작품 올리기</h1>
+<form id="upload">
+  <label>작품 제목<input id="title" name="title" required maxlength="120"></label>
+  <label>원하는 결과
+    <select id="wanted" name="wanted">
+      <option value="animated">움직이는 그림</option>
+      <option value="sculpture">조각</option>
+      <option value="relief">입체</option>
+      <option value="frame">원본 액자</option>
+    </select>
+  </label>
+  <button type="submit">올리기</button>
+</form>
+<section id="artwork" hidden>
+  <div class="muted">지금 벽에 걸린 것</div>
+  <div class="wall" data-testid="on-wall"></div>
+  <p data-testid="status"></p>
+  <p class="muted" data-testid="causes"></p>
+  <div class="notice" data-testid="notice" hidden></div>
+  <button type="button" data-testid="hang-result" disabled>결과로 바꿔 걸기</button>
+  <button type="button" class="secondary" data-testid="keep-frame" disabled>원본 액자 유지</button>
+</section>
+<script type="module" src="/app.js"></script>
+</body>
+</html>

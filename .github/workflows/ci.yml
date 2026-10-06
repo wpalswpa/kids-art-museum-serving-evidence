@@ -53,3 +53,23 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with: {name: run-evidence, path: run-evidence}
+
+  e2e:
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: "22", cache: npm}
+      - run: npm ci --no-audit --no-fund
+      - name: typecheck (web, e2e)
+        run: npm run typecheck
+      - name: build and start (web is compiled inside the image)
+        run: docker compose up -d --build --wait
+      - run: npx playwright install --with-deps chromium
+      - name: guardian E2E (Playwright)
+        env: {API_URL: "http://localhost:8000"}
+        run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: {name: playwright-report, path: "playwright-report\ntest-results"}
