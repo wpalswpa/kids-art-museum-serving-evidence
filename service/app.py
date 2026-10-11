@@ -72,7 +72,8 @@ def load(cur, art_id):
 @app.post("/artworks", status_code=201)
 def upload(body: dict, request: Request):
     wanted, title = body.get("wanted"), body.get("title")
-    if set(body) - {"wanted", "title"} or not isinstance(wanted, str) or wanted not in KINDS or not isinstance(title, str) or not 1 <= len(title) <= 120:
+    if (set(body) - {"wanted", "title"} or not isinstance(wanted, str) or wanted not in KINDS
+            or not isinstance(title, str) or not 1 <= len(title) <= 120):
         return error(422, "invalid_request", request, "wanted는 animated|sculpture|relief|frame, title은 1~120자")
     art = f.upload(wanted)  # 원본 액자로 먼저 건다(결정 001)
     status = "done" if art.result else "queued"
