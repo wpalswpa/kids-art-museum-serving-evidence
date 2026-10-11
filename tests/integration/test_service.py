@@ -206,6 +206,11 @@ def test_11_db_outage_and_recovery():
 
 def test_12_inputs_outside_the_happy_path_follow_contract():
     """계약 밖으로 새기 쉬운 입력(정수 아닌 id, 0·음수 id, JSON 아닌 본문, 없는 작품 확인)도 계약대로 답한다(결정 005)."""
+    for value in ([], {}, None, 0, True):
+        r = requests.post(f"{API}/artworks", json={"wanted": value, "title": "x"}, timeout=10)
+        assert r.status_code == 422 and contract(r, "post", "/artworks")["error"] == "invalid_request"
+        r = requests.post(f"{API}/artworks/999999/confirm", json={"choice": value}, timeout=10)
+        assert r.status_code == 422 and contract(r, "post", "/artworks/{id}/confirm")["error"] == "invalid_request"
     r = requests.get(f"{API}/artworks/abc", timeout=10)
     assert r.status_code == 422 and contract(r, "get", "/artworks/{id}")["error"] == "invalid_request"
     for bad_id in (0, -5):
