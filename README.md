@@ -4,7 +4,7 @@
 
 **무엇을 만들었나.** 아이 그림을 움직임·입체로 바꾸는 팀 서비스(교육 과정 4인 팀, 원본 비공개)에서 내가 맡은 작업 처리 규칙을, 실제로 돌아가는 API·워커·MariaDB 서비스로 다시 세웠다. 원본 팀 코드의 사본이 아니라 공개용 재현이다.
 
-**무엇이 바뀌나.** 변경이 올라오면 GitHub Actions가 ruff → 규칙 단위 검사 16개 → OpenAPI 문서 검증 → 컨테이너 빌드 → 계약 검사·장애 주입 시험 11개 → 음성 대조를 돌리고, 따로 TypeScript 타입 검사 → 보호자 화면 E2E 시험 4개(Playwright, 실제 브라우저)를 돌린다. 모든 API 응답은 OpenAPI 스키마로 검증되고, 모델 시간 초과·503·계약 위반 응답·DB 중지에서 규칙이 지켜지는지 확인한다.
+**무엇이 바뀌나.** 변경이 올라오면 GitHub Actions가 ruff → 규칙 단위 검사 16개 → OpenAPI 문서 검증 → 컨테이너 빌드 → 계약 검사·장애 주입 시험 13개 → 음성 대조를 돌리고, 따로 화면 타입 재생성·어긋남 검사 → TypeScript 타입 검사 → 보호자 화면 E2E 시험 4개(Playwright, 실제 브라우저)를 돌린다. 시험이 부른 API 응답(정상·오류)을 OpenAPI 스키마로 검증하고, 계약에 적힌 상태 코드를 시험이 모두 한 번 이상 받았는지 마지막 시험이 확인한다. 모델 시간 초과·503·계약 위반 응답·DB 중지에서 규칙이 지켜지는지 확인한다. 화면의 응답 타입은 계약에서 생성하므로 계약을 바꾸고 화면을 맞추지 않으면 CI가 실패한다([결정 005](docs/decisions/005-typed-contract.md)).
 
 **어떻게 아나.** [CI 실행 기록](https://github.com/wpalswpa/kids-art-museum-serving-evidence/actions/workflows/ci.yml)(로그·지표 보관), [장애 주입 시험](tests/integration/test_service.py), 음성 대조: CI가 워커 시간 제한을 1초에서 5초로 늘려 시간 초과 시나리오 2개가 실제로 실패하는지 확인하고, 되돌려 다시 통과시킨다(시험이 고장을 잡지 못하면 CI가 실패).
 
@@ -14,7 +14,8 @@
 docker compose up -d --build --wait
 pip install pytest jsonschema pyyaml requests
 API_URL=http://localhost:8000 COMPOSE=1 python -m pytest tests/integration -v
-npm ci && npx playwright install chromium && API_URL=http://localhost:8000 npx playwright test   # 화면 E2E
+npm ci && npm run gen:api && git diff --exit-code web/src/api.gen.ts && npm run typecheck   # 계약과 화면 타입
+npx playwright install chromium && API_URL=http://localhost:8000 npx playwright test   # 화면 E2E
 ```
 
 화면 E2E는 보호자가 겪는 흐름을 본다: 올리는 즉시 원본 액자, 결과는 확인 뒤에만 바꿔 걸기, 결과 미도달 안내와 원본 액자만 선택 가능, 품질 미달 이유 표시. 화면이 결과를 확인 전에 바로 걸도록 고치면 첫 시험이 실패하는 것을 로컬에서 확인했다([e2e/guardian.spec.ts](e2e/guardian.spec.ts), 화면 [web/src/app.ts](web/src/app.ts)).
@@ -33,7 +34,7 @@ npm ci && npx playwright install chromium && API_URL=http://localhost:8000 npx p
 | 구성 | 파일 |
 |---|---|
 | 처리 규칙(원본 액자 먼저·품질 미달 낮춤·장애 재시도·원인 5분류) | [fallback.py](fallback.py) |
-| 계약 | [contracts/openapi.yaml](contracts/openapi.yaml), [contracts/model_response.schema.json](contracts/model_response.schema.json) |
+| 계약 · 계약에서 생성한 화면 타입 | [contracts/openapi.yaml](contracts/openapi.yaml), [contracts/model_response.schema.json](contracts/model_response.schema.json), [web/src/api.gen.ts](web/src/api.gen.ts)(`npm run gen:api`) |
 | API · 워커(응답 분류 한 곳) · 가짜 모델 서버 | [service/](service/) |
 | 로그·지표 | 한 줄 JSON 로그(request_id·job_id·분류·지연), Prometheus `jobs_total`·`job_retries_total`·`job_attempts_total`·`job_duration_seconds` |
 

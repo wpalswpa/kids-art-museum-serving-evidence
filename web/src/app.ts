@@ -1,25 +1,11 @@
-// 보호자 화면. 응답 타입은 contracts/openapi.yaml의 스키마 이름을 따른다.
-type Kind = "animated" | "sculpture" | "relief" | "frame";
-type Status = "queued" | "running" | "done" | "not_delivered";
-type Cause = "guardian_choice" | "model_downgrade" | "guardian_switch" | "infra_failure" | "not_delivered";
+// 보호자 화면. 응답 타입은 contracts/openapi.yaml에서 생성한 api.gen.ts를 쓴다(npm run gen:api, 결정 005).
+import type { components } from "./api.gen";
 
-interface Artwork {
-  id: number;
-  title: string;
-  wanted: Kind;
-  on_wall: Kind;
-  target: Kind;
-  status: Status;
-  result: Kind | null;
-  causes: Cause[];
-  attempts: { stage: Kind; classification: string; attempt: number; latency_ms: number }[];
-}
-
-interface ApiError {
-  error: "not_found" | "invalid_request" | "not_ready" | "db_unavailable";
-  detail?: string;
-  request_id: string;
-}
+type Schemas = components["schemas"];
+type Kind = Schemas["Kind"];
+type Artwork = Schemas["Artwork"];
+type Cause = Artwork["causes"][number];
+type ApiError = Schemas["Error"];
 
 const KIND_LABEL: Record<Kind, string> = { animated: "움직이는 그림", sculpture: "조각", relief: "입체", frame: "원본 액자" };
 const CAUSE_LABEL: Record<Cause, string> = {
@@ -72,7 +58,7 @@ function render(art: Artwork): void {
 }
 
 async function confirmChoice(id: number, choice: Kind): Promise<void> {
-  render(await call<Artwork>(`/artworks/${id}/confirm`, { method: "POST", body: JSON.stringify({ choice }) }));
+  render(await call<Artwork>(`/artworks/${id}/confirm`, { method: "POST", body: JSON.stringify({ choice } satisfies Schemas["ConfirmRequest"]) }));
 }
 
 async function poll(id: number): Promise<void> {
@@ -85,7 +71,7 @@ $<HTMLFormElement>("#upload").addEventListener("submit", async (event) => {
   event.preventDefault();
   const title = $<HTMLInputElement>("#title").value;
   const wanted = $<HTMLSelectElement>("#wanted").value as Kind;
-  const art = await call<Artwork>("/artworks", { method: "POST", body: JSON.stringify({ wanted, title }) });
+  const art = await call<Artwork>("/artworks", { method: "POST", body: JSON.stringify({ wanted, title } satisfies Schemas["UploadRequest"]) });
   render(art);
   void poll(art.id);
 });
