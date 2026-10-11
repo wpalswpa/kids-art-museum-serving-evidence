@@ -19,7 +19,9 @@
 
 ## 3. 계약
 
-- **화면↔API.** `contracts/openapi.yaml`이 원본이다. 계약 검사는 실제 API 응답(정상·오류 모두)을 이 문서의 스키마로 검증한다. 오류 응답은 `{error, request_id}` 하나의 모양이다.
+- **화면↔API.** `contracts/openapi.yaml`이 원본이다. 계약 검사는 시험이 부른 실제 API 응답(정상·오류 모두)을 이 문서의 스키마로 검증한다. 오류 응답은 `{error, request_id}` 하나의 모양이다.
+- **화면의 응답 타입은 계약에서 생성한다(2026-10-11, 결정 005).** `npm run gen:api`가 `openapi-typescript`로 `contracts/openapi.yaml`을 `web/src/api.gen.ts`로 바꾸고, `web/src/app.ts`는 손으로 쓴 타입 대신 이 파일의 `components["schemas"]`를 쓴다. 생성물은 저장소에 넣는다. CI `e2e` 작업은 타입 검사 전에 `gen:api`를 다시 돌리고 `git diff --exit-code web/src/api.gen.ts`로 계약과 생성물이 어긋나면 실패한다. 계약에서 값을 빼면(예: 원인 하나 삭제) 그 값을 쓰는 화면 코드가 타입 검사에서 실패한다.
+- **계약 범위(2026-10-11, 결정 005).** 계약에 적힌 상태 코드는 서버가 실제로 돌려주는 것과 같아야 한다. 경로 id가 정수가 아니면 FastAPI가 422 `invalid_request`를 돌려주므로 `GET /artworks/{id}`에도 422를 적는다. id가 0이나 음수면 지금처럼 404다(그런 작품이 없다). 통합 시험은 ① 계약 밖 입력(정수 아닌 id, 0·음수 id, JSON 아닌 본문)도 계약 검사 함수로 확인하고 ② 마지막에 시험이 검증한 (메서드, 경로, 상태) 목록을 계약에 적힌 전체 목록과 비교해, 한 번도 확인하지 않은 상태가 있으면 실패한다. 그래서 "검증 범위 = 시험이 부른 응답"이 계약 전체와 같아진다. 계약에 없는 정적 경로(`/nope` 같은 화면 쪽 404)는 대상이 아니다.
 - **워커↔모델.** `contracts/model_response.schema.json`. 모델 응답은 `{"status": "ok" | "quality_below"}`만 허용한다.
 - **응답 분류(워커의 경계).** 모델 호출 결과를 규칙이 아는 분류로 바꾸는 곳은 워커 한 곳이다.
 
@@ -55,6 +57,8 @@
 ## 6. 자동 흐름(GitHub Actions)
 
 `checks` 작업: ruff → 단위 검사(규칙·분류) → OpenAPI 문서 검증. 통과하면 `integration` 작업: 컨테이너 빌드 → `docker compose up` → 준비 대기 → 계약 검사 → 장애 주입 시험 → 실패·성공과 관계없이 로그와 지표를 실행 기록에 남긴다.
+
+`e2e` 작업(8절): `npm ci` → 계약에서 화면 타입 다시 생성 → 생성물 어긋남 검사(`git diff --exit-code`) → 타입 검사 → 컨테이너 기동 → Playwright.
 
 ## 7. 하지 않는 것
 
