@@ -62,6 +62,10 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: "22", cache: npm}
       - run: npm ci --no-audit --no-fund
+      - name: web types match the contract (regenerate, then no diff)
+        run: |
+          npm run gen:api
+          git diff --exit-code web/src/api.gen.ts || { echo "계약(contracts/openapi.yaml)과 생성 타입이 다르다: npm run gen:api 뒤 커밋"; exit 1; }
       - name: typecheck (web, e2e)
         run: npm run typecheck
       - name: build and start (web is compiled inside the image)

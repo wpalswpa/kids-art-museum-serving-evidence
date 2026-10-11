@@ -21,7 +21,7 @@ WORKER_METRICS = os.environ.get("WORKER_METRICS_URL", "http://localhost:9101/met
 MODEL = os.environ.get("MODEL_URL", "http://localhost:8001")
 pytestmark = pytest.mark.skipif(not API, reason="API_URL이 없으면 통합 시험을 건너뛴다")
 SPEC = yaml.safe_load((Path(__file__).resolve().parents[2] / "contracts/openapi.yaml").read_text(encoding="utf-8"))
-CHECKED = []  # 계약으로 검증한 (메서드, 경로, 상태) 기록
+CHECKED = []  # 계약으로 검증한 (메서드, 경로, 상태) 기록. 마지막 시험(test_99)이 계약 전체와 비교한다
 
 
 def contract(resp, method, path):
@@ -48,6 +48,7 @@ def upload(wanted, title):
 
 def wait_closed(art_id, seconds=40):
     deadline = time.time() + seconds
+    art = None
     while time.time() < deadline:
         r = requests.get(f"{API}/artworks/{art_id}", timeout=10)
         art = contract(r, "get", "/artworks/{id}")
@@ -55,7 +56,9 @@ def wait_closed(art_id, seconds=40):
         if art["status"] in ("done", "not_delivered"):
             return art
         time.sleep(0.3)
-    raise AssertionError(f"작품 {art_id}가 {seconds}초 안에 끝나지 않음")
+    last = art and [(a["stage"], a["classification"], a["attempt"], a["latency_ms"]) for a in art["attempts"]]
+    raise AssertionError(f"작품 {art_id}가 {seconds}초 안에 끝나지 않음. 마지막 상태 {art and art['status']}, "
+                         f"시도(단계, 분류, 회차, 지연ms) {last}")
 
 
 def invariants(art):
@@ -181,6 +184,10 @@ def test_11_db_outage_and_recovery():
         assert r.status_code == 503 and body["error"] == "db_unavailable" and body["request_id"]
         r = requests.get(f"{API}/readyz", timeout=15)
         assert r.status_code == 503 and contract(r, "get", "/readyz")["error"] == "db_unavailable"
+        r = requests.get(f"{API}/artworks/{art['id']}", timeout=15)
+        assert r.status_code == 503 and contract(r, "get", "/artworks/{id}")["error"] == "db_unavailable"
+        r = requests.post(f"{API}/artworks/{art['id']}/confirm", json={"choice": "frame"}, timeout=15)
+        assert r.status_code == 503 and contract(r, "post", "/artworks/{id}/confirm")["error"] == "db_unavailable"
     finally:
         subprocess.run(["docker", "compose", "start", "db"], check=True)
     deadline = time.time() + 90
@@ -195,3 +202,31 @@ def test_11_db_outage_and_recovery():
     done = wait_closed(art["id"], seconds=90)
     assert done["result"] == "animated", "DB가 멈추기 전에 올린 작품이 재시작 뒤 끝까지 처리된다"
     invariants(done)
+
+
+def test_12_inputs_outside_the_happy_path_follow_contract():
+    """계약 밖으로 새기 쉬운 입력(정수 아닌 id, 0·음수 id, JSON 아닌 본문, 없는 작품 확인)도 계약대로 답한다(결정 005)."""
+    r = requests.get(f"{API}/artworks/abc", timeout=10)
+    assert r.status_code == 422 and contract(r, "get", "/artworks/{id}")["error"] == "invalid_request"
+    for bad_id in (0, -5):
+        r = requests.get(f"{API}/artworks/{bad_id}", timeout=10)
+        assert r.status_code == 404 and contract(r, "get", "/artworks/{id}")["error"] == "not_found"
+    r = requests.post(f"{API}/artworks", data="not json", headers={"Content-Type": "application/json"}, timeout=10)
+    assert r.status_code == 422 and contract(r, "post", "/artworks")["error"] == "invalid_request"
+    r = requests.post(f"{API}/artworks", json=["x"], timeout=10)
+    assert r.status_code == 422 and contract(r, "post", "/artworks")["error"] == "invalid_request"
+    r = requests.post(f"{API}/artworks/abc/confirm", json={"choice": "frame"}, timeout=10)
+    assert r.status_code == 422 and contract(r, "post", "/artworks/{id}/confirm")["error"] == "invalid_request"
+    r = requests.post(f"{API}/artworks/999999/confirm", json={"choice": "frame"}, timeout=10)
+    assert r.status_code == 404 and contract(r, "post", "/artworks/{id}/confirm")["error"] == "not_found"
+    contract(requests.get(f"{API}/readyz", timeout=10), "get", "/readyz")
+
+
+def test_99_every_contract_status_was_checked():
+    """계약에 적힌 (메서드, 경로, 상태)를 시험이 모두 한 번 이상 실제로 받아 검증했는지 본다. 파일 맨 끝에 있어야 한다.
+    503은 DB 중지 시나리오(COMPOSE=1)에서만 만들 수 있으므로, 그 시나리오를 돌리지 않을 때만 범위에서 뺀다."""
+    declared = {(m, path, int(code)) for path, ops in SPEC["paths"].items() for m, op in ops.items() for code in op["responses"]}
+    if os.environ.get("COMPOSE") != "1":
+        declared = {d for d in declared if d[2] != 503}
+    missing = sorted(declared - set(CHECKED))
+    assert not missing, f"계약에 있지만 어떤 시험도 받아 보지 않은 응답: {missing}"
