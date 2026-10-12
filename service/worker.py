@@ -35,6 +35,8 @@ def classify(art_id, title, stage):
                 body = r.json()
                 jsonschema.validate(body, SCHEMA)
                 kind = body["status"]
+            # 깨진 JSON·스키마 불일치는 모델 품질 부족과 구분한다.
+            # fallback.apply는 이를 같은 단계 재시도로 처리한다(결정 004).
             except (ValueError, jsonschema.ValidationError):
                 kind = "invalid_response"
     except requests.Timeout:
@@ -45,6 +47,8 @@ def classify(art_id, title, stage):
 
 
 def claim(conn):
+    # 잠긴 행은 건너뛰고 임대 시간을 기록해 중단된 작업을 다시 가져올 수 있게 한다.
+    # 임대 갱신·중복 모델 호출 방지까지 보장하지 않는다. 공개 재현은 워커 1개다.
     with conn.cursor() as cur:
         cur.execute("""SELECT * FROM artworks WHERE status='queued' OR (status='running' AND lease_until < NOW(3))
                        ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED""")
@@ -76,6 +80,8 @@ def process(conn, row):
         if status in ("done", "not_delivered"):
             cur.execute("SELECT TIMESTAMPDIFF(MICROSECOND, created_at, NOW(3)) AS us FROM artworks WHERE id=%s", (row["id"],))
             DURATION.observe(cur.fetchone()["us"] / 1e6)
+    # 시도 기록과 상태를 한 트랜잭션으로 저장한 뒤 완료 지표를 올린다.
+    # 메모리 지표는 재시작·DB 장애 때 DB와 영구히 일치하는 원장이 아니다.
     conn.commit()
     if status in ("done", "not_delivered"):
         JOBS.labels(status if status == "not_delivered" else f"done_{art.result}").inc()

@@ -8,7 +8,19 @@
 
 **어떻게 아나.** [CI 실행 기록](https://github.com/wpalswpa/kids-art-museum-serving-evidence/actions/workflows/ci.yml)(로그·지표 보관), [장애 주입 시험](tests/integration/test_service.py), 음성 대조: CI가 워커 시간 제한을 1초에서 5초로 늘려 시간 초과 시나리오 2개가 실제로 실패하는지 확인하고, 되돌려 다시 통과시킨다(시험이 고장을 잡지 못하면 CI가 실패).
 
-**재현.**
+## 읽는 순서와 빠른 검사
+
+[처리 규칙](fallback.py) → [API·워커 설계](docs/platform.md) → [타입 생성 결정](docs/decisions/005-typed-contract.md) → [CI](.github/workflows/ci.yml) 순서로 읽는다. `service/`는 공개 재현 API·워커·가짜 모델, `contracts/`는 계약, `web/`와 `e2e/`는 보호자 화면과 브라우저 검사다. `evidence/`는 비공개 팀 작업의 기존 기록이며 공개 서비스의 실행 결과와 구분한다.
+
+Docker와 모델 없이 처리 규칙만 확인하려면 Python 3.10 이상에서 저장소 루트의 아래 명령을 쓴다.
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+전체 재현은 Docker Compose, Node.js 22·npm, Python 3.12를 전제로 한다. 모델은 가짜 응답 서버다. 아래 환경변수 문법은 Bash 기준이며 PowerShell에서는 `$env:API_URL='http://localhost:8000'`, `$env:COMPOSE='1'`로 먼저 설정한다.
+
+**전체 재현.**
 
 ```bash
 docker compose up -d --build --wait
@@ -104,7 +116,7 @@ Python 3.10 이상, 표준 라이브러리만 씁니다. 규칙 코드는 [fallb
 
 ## 이 저장소가 보장하지 않는 것
 
-- 검사는 처리 규칙만 확인합니다. 모델이 좋은 결과를 만드는지는 확인하지 않습니다.
+- 단위 검사는 처리 규칙, 통합 검사는 API 계약과 장애 경로, E2E는 공개 화면의 흐름을 확인합니다. 가짜 모델을 쓰므로 생성 품질과 실제 부하는 확인하지 않습니다.
 - 원본 프로젝트에서 움직이는 그림은 팀이 만든 단순한 그림에서도 크게 일그러졌고, 품질 평가는 그림 수가 적어 끝나지 않았습니다([기록](evidence/README.md)).
 - 실제 가족이 쓰는 모습과 만족은 관찰하지 않았습니다.
 
